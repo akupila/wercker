@@ -174,11 +174,11 @@ test:
             name: glide install
             code: |
               export GO15VENDOREXPERIMENT=1
-              export GLIDE_VERSION=0.8.3
+              export GLIDE_VERSION=0.9.1
               curl -LO https://github.com/Masterminds/glide/releases/download/${GLIDE_VERSION}/glide-${GLIDE_VERSION}-linux-amd64.tar.gz
               tar -xvzf glide-${GLIDE_VERSION}-linux-amd64.tar.gz
               cp linux-amd64/glide ./
-              ./glide install --quick
+              ./glide install
 
         - script:
             name: clear out the build binaries
@@ -209,3 +209,45 @@ run-tests:
                 unset WERCKER_BUILD_ID
                 cd $CODE_PATH
                 ./test-all.sh
+
+push-to-ecr:
+    box:
+      id: alpine
+      cmd: /bin/sh
+    steps:
+      - internal/docker-push:
+          aws-access-key: $AWS_ACCESS_KEY_ID
+          aws-secret-key: $AWS_SECRET_ACCESS_KEY
+          aws-region: us-east-1
+          aws-registry-id: $AWS_REGISTRY_ID
+          repository: test-faiq
+
+push-to-quay-reg:
+    box:
+      id: alpine
+      cmd: /bin/sh
+    steps:
+      - internal/docker-push:
+        username: $USERNAME
+        password: $PASSWORD
+        repository: quay.io/wercker/test-faiq
+        registry: https://quay.io/v2/
+        tag: look at me
+
+gcr:
+    box:
+      id: gcr.io/cooltime3000/kiddie-pool
+      username: _json_key
+      password: $GCR_JSON
+      registry: gcr.io
+      cmd: /bin/sh
+    steps:
+      - script:
+          code: |
+            echo "hello world"
+      - internal/docker-push:
+        repository: gcr.io/cooltime3000/kiddie-pool
+        username: _json_key
+        password: $GCR_JSON
+        registry: gcr.io
+        cmd: /bin/sh
