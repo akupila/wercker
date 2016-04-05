@@ -340,9 +340,58 @@ func (s *DockerScratchPushStep) Execute(ctx context.Context, sess *core.Session)
 		return -1, err
 	}
 
+	// layer.tar has an extra folder in it so we have to strip it :/
+	tempLayerFile, err := os.Open(s.options.HostPath("layer.tar"))
+	if err != nil {
+		return -1, err
+	}
+	defer os.Remove(s.options.HostPath("layer.tar"))
+	defer tempLayerFile.Close()
+
+	realLayerFile, err := os.OpenFile(s.options.HostPath("real_layer.tar"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return -1, err
+	}
+	defer realLayerFile.Close()
+
+	tr := tar.NewReader(tempLayerFile)
+	tw := tar.NewWriter(realLayerFile)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			// finished the tarball
+			break
+		}
+		if err != nil {
+			return -1, err
+		}
+		// Skip the base dir
+		if hdr.Name == "./" {
+			continue
+		}
+		if strings.HasPrefix(hdr.Name, "output/") {
+			hdr.Name = hdr.Name[len("output/"):]
+		} else if strings.HasPrefix(hdr.Name, "source/") {
+			hdr.Name = hdr.Name[len("source/"):]
+		}
+		if len(hdr.Name) == 0 {
+			continue
+		}
+		tw.WriteHeader(hdr)
+		_, err = io.Copy(tw, tr)
+		if err != nil {
+			return -1, err
+		}
+	}
+	tw.Close()
+
+
+
+	layerID, err := // SHA256 OF LAYER
+
 	// At this point we've written the layer to disk, we're going to add up the
 	// sizes of all the files to add to our json format, and sha256 the data
-	layerFile, err := os.Open(s.options.HostPath("layer.tar"))
+	layerFile, err := os.Open(s.options.HostPath("real_layer.tar"))
 	if err != nil {
 		return -1, err
 	}
@@ -377,10 +426,6 @@ func (s *DockerScratchPushStep) Execute(ctx context.Context, sess *core.Session)
 		Volumes:      s.volumes,
 	}
 
-	layerID, err := GenerateDockerID()
-	if err != nil {
-		return -1, err
-	}
 
 	// Make the JSON file we need
 	imageJSON := DockerImageJSON{
@@ -473,50 +518,6 @@ func (s *DockerScratchPushStep) Execute(ctx context.Context, sess *core.Session)
 	if err != nil {
 		return -1, err
 	}
-	// layer.tar has an extra folder in it so we have to strip it :/
-	tempLayerFile, err := os.Open(s.options.HostPath("layer.tar"))
-	if err != nil {
-		return -1, err
-	}
-	defer os.Remove(s.options.HostPath("layer.tar"))
-	defer tempLayerFile.Close()
-
-	realLayerFile, err := os.OpenFile(s.options.HostPath("scratch", layerID, "layer.tar"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return -1, err
-	}
-	defer realLayerFile.Close()
-
-	tr := tar.NewReader(tempLayerFile)
-	tw := tar.NewWriter(realLayerFile)
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			// finished the tarball
-			break
-		}
-		if err != nil {
-			return -1, err
-		}
-		// Skip the base dir
-		if hdr.Name == "./" {
-			continue
-		}
-		if strings.HasPrefix(hdr.Name, "output/") {
-			hdr.Name = hdr.Name[len("output/"):]
-		} else if strings.HasPrefix(hdr.Name, "source/") {
-			hdr.Name = hdr.Name[len("source/"):]
-		}
-		if len(hdr.Name) == 0 {
-			continue
-		}
-		tw.WriteHeader(hdr)
-		_, err = io.Copy(tw, tr)
-		if err != nil {
-			return -1, err
-		}
-	}
-	tw.Close()
 
 	// Build our output tarball and start writing to it
 	imageFile, err := os.Create(s.options.HostPath("scratch.tar"))
