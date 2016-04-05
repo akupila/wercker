@@ -17,6 +17,7 @@ package dockerlocal
 import (
 	"archive/tar"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -413,6 +414,7 @@ func (s *DockerScratchPushStep) Execute(ctx context.Context, sess *core.Session)
 		}
 	}
 	tw.Close()
+
 	realLayerFile.Seek(0, 0)
 	dgst := digest.Canonical.New()
 	_, err = io.Copy(dgst.Hash(), realLayerFile)
@@ -422,6 +424,14 @@ func (s *DockerScratchPushStep) Execute(ctx context.Context, sess *core.Session)
 	diffID := dgst.Digest()
 	layerID := diffID.Hex()
 
+	realLayerFile.Seek(0, 0)
+	hash := sha256.New()
+	_, err = io.Copy(hash, realLayerFile)
+	md := hash.Sum(nil)
+	yo := hex.EncodeToString(md)
+	if yo == layerID {
+		fmt.Println("sha256 encoding and layer encoding are the same what the fuck")
+	}
 	config := docker.Config{
 		Cmd:          s.cmd,
 		Entrypoint:   s.entrypoint,
