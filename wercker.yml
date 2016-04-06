@@ -220,4 +220,4 @@ scratch:
     cmd: /bin/sh
   steps:
     - internal/docker-scratch-push:
-      repository: quay.io/go/fuckurself
+        repository: quay.io/go/fuckurself
