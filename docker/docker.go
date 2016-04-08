@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/docker/distribution/digest"
+	"github.com/docker/docker/image"
 	"github.com/docker/docker/layer"
 	dockersignal "github.com/docker/docker/pkg/signal"
 	"github.com/docker/docker/pkg/term"
@@ -372,22 +373,21 @@ func (s *DockerScratchPushStep) Execute(ctx context.Context, sess *core.Session)
 		return -1, err
 	}
 	diffID := dgst.Digest()
-	fullSHA := diffID.String()
 
 	tempLayerFile.Close()
 	realLayerFile.Close()
 
-	config := docker.Config{
-		Cmd:          s.cmd,
-		Entrypoint:   s.entrypoint,
-		Hostname:     containerID[:16],
-		WorkingDir:   s.workingDir,
-		ExposedPorts: s.ports,
-		Volumes:      s.volumes,
+	config := &container.Config{
+		Cmd:        s.cmd,
+		Entrypoint: s.entrypoint,
+		Hostname:   containerID[:16],
+		WorkingDir: s.workingDir,
+		Volumes:    s.volumes,
 	}
+
 	// Make the JSON file we need
 	t := time.Now()
-	base := layer.V1Image{
+	base := image.V1Image{
 		Architecture: "amd64",
 		Container:    containerID,
 		ContainerConfig: container.Config{
@@ -398,27 +398,34 @@ func (s *DockerScratchPushStep) Execute(ctx context.Context, sess *core.Session)
 		OS:            "linux",
 		Config:        config,
 	}
-	imageJSON := layer.Image{
+	imageJSON := image.Image{
 		V1Image: base,
-		History: []layer.History{layer.History{
+		History: []image.History{image.History{
 			Created: t,
 		}},
-		RootFS: RootFSConfig{
+		RootFS: &image.RootFS{
 			Type: "layers",
-			DiffIDs: []string{
-				fullSHA,
+			DiffIDs: []layer.DiffID{
+				layer.DiffID(diffID),
 			},
 		},
 	}
-	hash := sha256.New()
+
 	jsonOut, err := json.Marshal(imageJSON)
 	if err != nil {
 		return -1, err
 	}
-	hash.Write(jsonOut)
-	md := hash.Sum(nil)
-	layerID := hex.EncodeToString(md)
-	s.logger.Debugln(string(jsonOut))
+	img, err := image.NewFromJSON(jsonOut)
+	if err != nil {
+		return -1, err
+	}
+	js, err := img.MarshalJSON()
+	if err != nil {
+		return -1, err
+	}
+	hash := sha256.New()
+	hash.Write(js)
+	layerID := hex.EncodeToString(hash.Sum(nil))
 	s.logger.Debugln(layerID)
 	err = os.MkdirAll(s.options.HostPath("scratch", layerID), 0755)
 	os.Rename(realLayerFile.Name(), s.options.HostPath("scratch", layerID, "layer.tar"))
@@ -448,7 +455,7 @@ func (s *DockerScratchPushStep) Execute(ctx context.Context, sess *core.Session)
 		return -1, err
 	}
 	defer jsonFile.Close()
-	_, err = jsonFile.Write(jsonOut)
+	_, err = jsonFile.Write(js)
 	if err != nil {
 		return -1, err
 	}
@@ -528,13 +535,12 @@ func (s *DockerScratchPushStep) Execute(ctx context.Context, sess *core.Session)
 	if err != nil {
 		return -1, err
 	}
-	//e, err := core.EmitterFromContext(ctx)
+	e, err := core.EmitterFromContext(ctx)
 	err = client.LoadImage(docker.LoadImageOptions{InputStream: loadFile})
 	if err != nil {
 		return 1, err
 	}
-	return -1, err
-	//return s.tagAndPush(layerID, e, client)
+	return s.tagAndPush(layerID, e, client)
 }
 
 // CollectArtifact is copied from the build, we use this to get the layer
@@ -872,6 +878,7 @@ func (s *DockerPushStep) Execute(ctx context.Context, sess *core.Session) (int, 
 func (s *DockerPushStep) tagAndPush(imageID string, e *core.NormalizedEmitter, client *DockerClient) (int, error) {
 	// Create a pipe since we want a io.Reader but Docker expects a io.Writer
 	r, w := io.Pipe()
+	fmt.Println("here")
 
 	// emitStatusses in a different go routine
 	go EmitStatus(e, r, s.options)

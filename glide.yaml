@@ -60,4 +60,4 @@ import:
     vcs: git
   - package: github.com/wercker/docker-check-access
   - package: github.com/docker/docker/reference
-  - package: github.com/docker/docker/image
+  - package: github.com/docker/docker/layer
