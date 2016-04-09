@@ -30,11 +30,11 @@ build:
         name: glide install
         code: |
           export GO15VENDOREXPERIMENT=1
-          export GLIDE_VERSION=0.8.3
+          export GLIDE_VERSION=0.10.2
           curl -LO https://github.com/Masterminds/glide/releases/download/${GLIDE_VERSION}/glide-${GLIDE_VERSION}-linux-amd64.tar.gz
           tar -xvzf glide-${GLIDE_VERSION}-linux-amd64.tar.gz
           cp linux-amd64/glide /bin/glide
-          glide install --quick
+          glide install
 
     - script:
         code: |
@@ -214,10 +214,3 @@ run-tests:
                 cd $CODE_PATH
                 ./test-all.sh
 
-scratch:
-  box:
-    id: alpine
-    cmd: /bin/sh
-  steps:
-    - internal/docker-scratch-push:
-        repository: quay.io/go/fuckurself
