@@ -61,3 +61,4 @@ import:
   - package: github.com/wercker/docker-check-access
   - package: github.com/docker/docker/reference
   - package: github.com/docker/docker/layer
+  - package: github.com/docker/go-connections/nat
