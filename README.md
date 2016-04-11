@@ -1,4 +1,5 @@
 # wercker - your new favorite dev tool
+
 [![wercker status](https://app.wercker.com/status/febe6e1691586f99d20eb79c6b706aaa/s/master "wercker status")](https://app.wercker.com/project/bykey/febe6e1691586f99d20eb79c6b706aaa)
 
 This is the project for `wercker`, the command-line tool that powers
