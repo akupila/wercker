@@ -38,7 +38,7 @@ In Go 1.5 you'll need the vendor experiment enabled, so make sure to export
 
 In your git checkout ($GOPATH/src/github.com/wercker/wercker), run:
 ```
-   glide install --quick
+   glide install
 ```
 
 This command should download the appropiate dependencies.
